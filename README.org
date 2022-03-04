@@ -1,0 +1,163 @@
+#+title: Compiling Anything to Categories
+#+author: Greg Pfeil <greg@technomadic.org>
+
+:notes:
+This is a talk about and sample project for the [[https://github.org/con-kitty/categorifier][Categorifier]] GHC plugin.
+
+There are two different plugins discussed here. One is Conal Elliott's original, and the other is our rewrite of it. However, all examples use the syntax of our rewrite, to make the presentation consistent. See [[https://github.com/conal/concat][conal/concat]] for the original.
+:END:
+
+* Compiling to Categories
+
+:notes:
+If you're not familiar with this project, it was a paper a few years ago from Conal Elliott. It relied on earlier work that showed that the models of the lambda calculus share a 1:1 correspondence with the Cartesian closed categories. Conal had the realization that Haskell is pretty much the Lambda calculus (right)? And so we should be able to translate arbitrary Haskell code to an arbitrary Cartesian closed category.
+
+He implemented this as a GHC plugin, that would intercept GHC's Core representation (the most Lambda-y of Haskell's intermediate representations), and rewrite it from morphisms in the category Hask to morphisms in the whatever CCC you wanted, acting as a functor (not a ~Functor~) between Haskell and your target category.
+
+So, what does this mean, practically?
+
+All sorts of things form CCCs: other programming languages, computer hardware, automatic differentiation, etc. So now, instead of working within an eDSL or some other external approach, you can tell GHC (via userland type class instances) how your target forms a CCC, then indicate in your code which bits of Haskell you want to interpret differently.
+:END:
+
+#+begin_src haskell
+  newtype Hask a b = Hask (a -> b)
+
+  instance Category Hask where
+    id = Hask id
+    Hask g . Hask f = Hask $ g . f
+  -- ...
+
+  Categorify.expression (2 +) :: Int `Hask` Int
+#+end_src
+
+*** What was it for
+
+#+caption Kittyhawk H2 aircraft in flight
+[[./resources/H2.jpg]]
+
+:notes:
+It's for getting *this plane* into the air.
+
+Let me do a brief pitch for the plane. This is an "eVTOL" (Electric Vertical-TakeOff-and-Landing vehicle). It's a real thing that actually flies, not a mock-up or CG. We have around 20 of them at the moment. It's a single-passenger model, but we haven't yet flown a human in it yet <<<any publicly-shareable info about that goal?>>>. It's what's called a "tilt-rotor", where the propellors move.
+
+The flight control system for this vehicle, H2, is written almost entirely in Haskell. Actually, that's pretty cool in itself, so I guess I can just stop the talk here. tl;dr, we have a plane flying on Haskell.
+
+But that was already there before I even started at Kittyhawk, thanks to Greg Horn and his team of adventurous controls engineers. So, what did we do to make this project even cooler?
+
+Well, here's where things stood when I arrived:
+
+- ~30k LoC of Haskell code to define the flight controller
+- a higher-kinded data approach used to allow either direct interpretation of the Haskell or interpretation into an AST that would be used to generate the C code that is compiled to then run on the aircraft.
+
+The HKD approach has a few complications
+
+1. it required redefining a bunch of fairly basic operations. E.g., ~if then else~, boolean operations, ordinal operations, etc. So that we could define instances over our various HKD functors;
+2. extra type parameters, with very rich sets of constraints, were passed around through practically every function in the system;
+
+So, we brought in Conal's ~concat~ to move a lot of that complexity into the compiler and allow the controls engineers to write the kind of Haskell that everyone else does.
+:END:
+
+* Compiling to Categories
+
+:notes:
+But Conal's work didn't quite get us there ... he provided the foundation, but his plugin still required your code to be written with the /Compiling to Categories/ plugin in mind. However, we had 30k lines of existing Haskell that flew our plane, and we weren't in a position to rewrite all of it.
+:END:
+
+* Compiling Anything to Categories
+
+:notes:
+So we set out to extend Compiling to Categories to work for our purposes, and to get it polished enough that others could do the same.
+:END:
+
+** me
+
+[[./resources/freediving.jpg]]
+
+:notes:
+I'm Greg Pfeil. I'm a programmer at Kittyhawk, working on the tools team, to support the other teams, including flight controls, flighttest, etc.
+:END:
+
+** The Team
+
+- Chris McKinlay
+- Matt Peddie
+- Ziyang Liu
+- Ian Kim
+- Greg Pfeil <- me
+
+** The Project
+
+- OSS just about a month ago
+- from the good graces of [[https://kittyhawk.aero][Kittyhawk]]
+
+** What did we add?
+
+Support for
+- recursion
+- multiple modules (and third-party dependencies)
+- various type class hierarchies
+- FFI integration (remember when I said "almost entirely in Haskell"?)
+- references (abstraction in the target category)
+
+Improved performance
+
+Rich Error reporting, with suggestions
+
+Separate categorification (translate common functions once, rather than every time they're called)
+
+* Compiling Anything to Categories
+* Compiling (Almost) Anything to Categories
+
+But, we didn't get /everything/ to work, and yet we needed everything to work ... can't get an "oops!".
+
+So we added two "loopholes" to the plugin. Ways to get things through when the plugin would otherwise give up
+
+** NativeCat
+
+:notes:
+This class gives us a way to insert a particular mapping for a Haskell function in a particular category. This is also used behind the scenes to power our support for "separate categorification".
+:END:
+
+#+begin_src haskell
+  Categorify.separately 'someFunctionCalledALot ''MyCategory []
+  -- > Categorify.function 'someFunctionCalledALot
+  -- > instance NativeCat MyCategory "someFunctionCalledALot" In Out where
+  -- >   nativeK = wrap_someFunctionCalledALot
+
+  -- This is faster because of that
+  Categorify.function 'functionThatCallsThatOneALot
+#+end_src
+
+** automatic interpretation
+
+:notes:
+This is a way to bypass the plugin, for many functions in one fell swoop. "Automatic" in that you don't need to manually make a ~NativeCat~ instance for each one.
+:END:
+
+** improving the plugin
+
+While we think these are good and useful, it would also be great if we could patch up the remaining missing pieces:
+
+*** existential types
+
+:notes:
+~deriveHasRep~ is pretty smart. It can even handle most GADTs pretty well. And when it does fall down, we can usually manually write an instance that does what we want. However, since we use type synonyms to define the "standard" representation for a type, we can't use existentials.
+:END:
+
+#+begin_src haskell
+  -- won't work
+  type Rep (Meh b c) = (forall a. (a, b), c)
+
+  -- might work
+  type Rep (Meh b c) = (Exists (Flip (,) b), c)
+#+end_src
+
+*** mutual recursion
+
+Simple recursion works fine, but mutual recursion fails ... and in some cases it fails via nontermination. When we can, we at least identify mutual recursion and complain at compile time, but we can't always.
+
+*** eliminate ~HasRep~
+
+:notes:
+We currently need to define a ~HasRep~ instance for any compound types. It's usually trivially done with a call to ~deriveHasRep~, but it seems like we could piggyback off ~Generic~ with a bit of work. This would be especially helpful, because 3rd-party libraries are much more likely to provide ~Generic~ instances for their types than ~HasRep~ ones. This can be particularly painful when upstream types are private, and so we can't easily define ~HasRep~ without patching those libraries.
+:END:

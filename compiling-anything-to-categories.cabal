@@ -1,0 +1,33 @@
+cabal-version:  2.4
+
+name:           compiling-anything-to-categories
+version:        0.1
+description:    Example project for Categorifier GHC plugin
+homepage:       https://github.com/sellout/compiling-anything-to-categories#readme
+bug-reports:    https://github.com/sellout/compiling-anything-to-categories/issues
+build-type:     Simple
+tested-with:    GHC==8.10.1, GHC==8.10.2, GHC==8.10.4
+
+source-repository head
+  type: git
+  location: https://github.com/sellout/compiling-anything-to-categories
+
+library
+  exposed-modules:
+  ghc-options:
+    -O2
+    -Wall
+  build-depends:
+    lens
+
+executable example
+  main-is: Example.hs
+  ghc-options:
+    -O2
+    -fplugin Categorifier
+    -fplugin-opt Categorifier:hierarchy:Categorifier.ConCat.classHierarchy
+    -Wall
+  build-depends:
+    , categorifier
+    , categorifier-concat
+    , compiling-anything-to-categories
