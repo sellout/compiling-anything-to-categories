@@ -25,9 +25,14 @@ executable example
   ghc-options:
     -O2
     -fplugin Categorifier
-    -fplugin-opt Categorifier:hierarchy:Categorifier.ConCat.classHierarchy
+    -fplugin-opt Categorifier:hierarchy:Categorifier.Hierarchy.baseHierarchy
     -Wall
   build-depends:
-    , categorifier
-    , categorifier-concat
+    , base
+    , categorifier-category
+    -- shouldn't need this
+    , categorifier-client
+    , categorifier-plugin
     , compiling-anything-to-categories
+    -- shouldn't need this
+    , ghc-prim

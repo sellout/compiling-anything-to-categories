@@ -1,0 +1,79 @@
+source-repository-package
+  type: git
+  location: https://github.com/con-kitty/categorifier.git
+  tag: d72020b7f2c4534f94d7694b477e0dc8a3cb1f77
+  subdir: category
+
+source-repository-package
+  type: git
+  location: https://github.com/con-kitty/categorifier.git
+  tag: d72020b7f2c4534f94d7694b477e0dc8a3cb1f77
+  subdir: client
+
+source-repository-package
+  type: git
+  location: https://github.com/con-kitty/categorifier.git
+  tag: d72020b7f2c4534f94d7694b477e0dc8a3cb1f77
+  subdir: common
+
+source-repository-package
+  type: git
+  location: https://github.com/con-kitty/categorifier.git
+  tag: d72020b7f2c4534f94d7694b477e0dc8a3cb1f77
+  subdir: duoids
+
+source-repository-package
+  type: git
+  location: https://github.com/con-kitty/categorifier.git
+  tag: d72020b7f2c4534f94d7694b477e0dc8a3cb1f77
+  subdir: integrations/concat-extensions/category
+
+source-repository-package
+  type: git
+  location: https://github.com/con-kitty/categorifier.git
+  tag: d72020b7f2c4534f94d7694b477e0dc8a3cb1f77
+  subdir: plugin
+
+source-repository-package
+  type: git
+  location: git://github.com/conal/concat.git
+  tag: a0f894d73be00099b652010e22bf021637320881
+  subdir: classes
+
+source-repository-package
+  type: git
+  location: git://github.com/conal/concat.git
+  tag: a0f894d73be00099b652010e22bf021637320881
+  subdir: examples
+
+source-repository-package
+  type: git
+  location: git://github.com/conal/concat.git
+  tag: a0f894d73be00099b652010e22bf021637320881
+  subdir: inline
+
+source-repository-package
+  type: git
+  location: git://github.com/conal/concat.git
+  tag: a0f894d73be00099b652010e22bf021637320881
+  subdir: known
+
+source-repository-package
+  type: git
+  location: git://github.com/conal/concat.git
+  tag: a0f894d73be00099b652010e22bf021637320881
+  subdir: plugin
+
+source-repository-package
+  type: git
+  location: git://github.com/conal/concat.git
+  tag: a0f894d73be00099b652010e22bf021637320881
+  subdir: satisfy
+
+-- Since concat-examples is a source-repository-package, this is needed to
+-- avoid running tests in concat-examples with `cabal test all`.
+package concat-examples
+  tests: False
+
+packages:
+  ./compiling-anything-to-categories.cabal
