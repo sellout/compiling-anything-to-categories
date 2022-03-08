@@ -1,5 +1,7 @@
 #+title: Compiling Anything to Categories
 #+author: Greg Pfeil <greg@technomadic.org>
+#+epresent_frame_level: 3
+#+epresent_mode_line: (" @sellout — Compiling Anything to Categories                 " (:eval (int-to-string epresent-page-number)))
 
 :notes:
 This is a talk about and sample project for the [[https://github.org/con-kitty/categorifier][Categorifier]] GHC plugin.
@@ -9,14 +11,24 @@ There are two different plugins discussed here. One is Conal Elliott's original,
 
 * Compiling to Categories
 
-:notes:
-If you're not familiar with this project, it was a paper a few years ago from Conal Elliott. It relied on earlier work that showed that the models of the lambda calculus share a 1:1 correspondence with the Cartesian closed categories. Conal had the realization that Haskell is pretty much the Lambda calculus (right)? And so we should be able to translate arbitrary Haskell code to an arbitrary Cartesian closed category.
+http://conal.net/papers/compiling-to-categories/
 
-He implemented this as a GHC plugin, that would intercept GHC's Core representation (the most Lambda-y of Haskell's intermediate representations), and rewrite it from morphisms in the category Hask to morphisms in the whatever CCC you wanted, acting as a functor (not a ~Functor~) between Haskell and your target category.
+[[./resources/categorifier-diagram.jpg]]
+
+:notes:
+If you're not familiar with this project, it was a paper five years ago from Conal Elliott. It relied on earlier work that showed that the models of the lambda calculus share a 1:1 correspondence with the Cartesian closed categories. Conal had the realization that Haskell is pretty much the Lambda calculus (right)? And so we should be able to translate arbitrary Haskell code to a Cartesian closed category of our choice.
+
+He implemented this as a GHC plugin, that would intercept GHC's Core representation (the most lambda-y of Haskell's intermediate representations), and rewrite it from morphisms in the category Hask to morphisms in whatever CCC you wanted, acting as a functor (not a ~Functor~) between Haskell and your target category.
 
 So, what does this mean, practically?
 
-All sorts of things form CCCs: other programming languages, computer hardware, automatic differentiation, etc. So now, instead of working within an eDSL or some other external approach, you can tell GHC (via userland type class instances) how your target forms a CCC, then indicate in your code which bits of Haskell you want to interpret differently.
+All sorts of things form CCCs: other programming languages, computer hardware, automatic differentiation, etc. So now, instead of working within an eDSL or some other external approach, you can tell GHC (via type class instances) how your target forms a CCC, then indicate in your code which bits of Haskell you want to interpret differently.
+
+This also has some really neat implications, IMO.
+
+For one, it doesn't operate at the level of programs, say, turning a Haskell program into a program that, say, prints out its call graph. It operates at the level of morphisms (or functions), so you can convert /part/ of your program into something else, then use that something else in the surrounding Haskell context. I believe Mike Sperber, the organzier of this conference even "double categorifies" some code, running it from Haskell to one target category, then re-processing that resulting code into a second target category. This could potentially also be done with a single categorification to a category of a composition of profunctors.
+
+Orthogonally, you can convert the same Haskell code into multiple categories within the same program. For example, you might have a Web app, and as is common, there might be functionality that you need on the backend, but you also want to provide via JS for a fast client-side preview of some results. You could categorize both to your back-end system and JS. Again, you could also do this with a single categorification using a product category rather than two parallel categorifications.
 :END:
 
 #+begin_src haskell
@@ -30,6 +42,14 @@ All sorts of things form CCCs: other programming languages, computer hardware, a
   Categorify.expression (2 +) :: Int `Hask` Int
 #+end_src
 
+** Overview
+
+- what we're using this for
+- what didn't work
+- what we improved
+- how to use it
+- what's left to do
+
 *** What was it for
 
 #+caption Kittyhawk H2 aircraft in flight
@@ -38,61 +58,99 @@ All sorts of things form CCCs: other programming languages, computer hardware, a
 :notes:
 It's for getting *this plane* into the air.
 
-Let me do a brief pitch for the plane. This is an "eVTOL" (Electric Vertical-TakeOff-and-Landing vehicle). It's a real thing that actually flies, not a mock-up or CG. We have around 20 of them at the moment. It's a single-passenger model, but we haven't yet flown a human in it yet <<<any publicly-shareable info about that goal?>>>. It's what's called a "tilt-rotor", where the propellors move.
+Let me do a brief pitch for the plane. This vehicle, called H2, is an "eVTOL" (Electric Vertical-TakeOff-and-Landing vehicle). It's a real thing that actually flies, not a mock-up or CG. We have around 20 of them at the moment. It's a single-passenger model, but we haven't flown a human in it /yet/ <<<any publicly-shareable info about that goal?>>>. It's what's called a "tilt-rotor", where the propellors move to convert from helicopter-like lift to plane-like forward propulsion.
 
-The flight control system for this vehicle, H2, is written almost entirely in Haskell. Actually, that's pretty cool in itself, so I guess I can just stop the talk here. tl;dr, we have a plane flying on Haskell.
+The flight control system for this vehicle is written almost entirely in Haskell. Actually, that's pretty cool in itself, so I guess I can just stop the talk here. tl;dr, we have a plane flying on Haskell.
 
 But that was already there before I even started at Kittyhawk, thanks to Greg Horn and his team of adventurous controls engineers. So, what did we do to make this project even cooler?
 
 Well, here's where things stood when I arrived:
 
-- ~30k LoC of Haskell code to define the flight controller
+- ~30k LoC of Haskell code in hundreds of modules to define the flight controller
 - a higher-kinded data approach used to allow either direct interpretation of the Haskell or interpretation into an AST that would be used to generate the C code that is compiled to then run on the aircraft.
 
 The HKD approach has a few complications
 
 1. it required redefining a bunch of fairly basic operations. E.g., ~if then else~, boolean operations, ordinal operations, etc. So that we could define instances over our various HKD functors;
 2. extra type parameters, with very rich sets of constraints, were passed around through practically every function in the system;
+3. since any code that could become part of the controller needed to be aware of the HKD approach, it meant we couldn't use third-party libraries for anything core to the system.
 
 So, we brought in Conal's ~concat~ to move a lot of that complexity into the compiler and allow the controls engineers to write the kind of Haskell that everyone else does.
+
+That meant defining our own Cartesian closed category -- one for our C AST. For this part, we took advantage of large parts of what already existed for the HKD system. It's not the meat of this talk, but it has been open sourced and we hope it's a generally useful application of the approach.
+:END:
+
+https://github.com/con-kitty/categorifier-c
+
+:notes:
+This uses the plugin to convert Haskell to a subset of C, with guaranteed in-bounds array access, no introduction of NaNs, and deterministic run time. We have a randomized expression generation system that ensures the original Haskell and generated C produce bit-for-bit identical results.
 :END:
 
 * Compiling to Categories
 
 :notes:
-But Conal's work didn't quite get us there ... he provided the foundation, but his plugin still required your code to be written with the /Compiling to Categories/ plugin in mind. However, we had 30k lines of existing Haskell that flew our plane, and we weren't in a position to rewrite all of it.
+But Conal's work didn't quite get us there ... he provided the foundation, but his plugin still required your code to be written with the /Compiling to Categories/ plugin in mind. What I mean by that is the plugin could semantically handle a lot of stuff, but if you just wrote common Haskell code, you were bound to bump into limitations. One is that since inlining had to be handled very carefully, it was almost impossible to use functions defined in other modules.
+
+However, we had 30k lines of existing Haskell that flew our plane, and we weren't in a position to rewrite all of it.
+
+- no support for sum types
+- no support for recursion
+- performance issues
+- modularity issues
+- etc.
 :END:
 
 * Compiling Anything to Categories
 
 :notes:
-So we set out to extend Compiling to Categories to work for our purposes, and to get it polished enough that others could do the same.
+So, rather than rewrite the code that Kittyhawk already trusted, we set out to extend /Compiling to Categories/ to work for our purposes, and to get it polished enough that others could easily do the same.
 :END:
 
 ** me
 
 [[./resources/freediving.jpg]]
 
+- Haskell experience: 14+ years
+- breathhold: 4:01
+- depth: 41m / 136' (about an 11 story residential building)
+
 :notes:
-I'm Greg Pfeil. I'm a programmer at Kittyhawk, working on the tools team, to support the other teams, including flight controls, flighttest, etc.
+I'm Greg Pfeil. I'm a programmer at Kittyhawk, working on the *Tools* team, to support the other teams, including flight controls, flighttest, etc. That label is pretty broad. It does include things like providing GTK+ apps, log querying, and flight simulation. This talk, however, covers the part of it that is GHC-related work.
+
+Outside of work, I like to do, uh, "individual adventure sports". Things like rock climbing, backpacking, fishing, etc. Currently my passion is freediving. I can hold my breath for 4 minutes, and can dive over 40m down.
+
+If you find me on social media, or email, or whatever, the best way to get a quick response is to throw in a comment about one of those activities. That'll definitely hook me!
 :END:
 
 ** The Team
+[[./resources/GregHorn.jpg]] [[./resources/MattPeddie.jpg]] [[./resources/ChrisMcKinlay.jpg]] [[./resources/ZiyangLiu.jpg]] [[./resources/IanKim.jpg]] [[./resources/GregPfeil.jpg]]
 
+- Greg Horn
 - Chris McKinlay
 - Matt Peddie
 - Ziyang Liu
 - Ian Kim
 - Greg Pfeil <- me
 
+:notes:
+Everyone here has been invaluable in making this project happen. In fact, so have many others, but I tried to limit it to those who wrote the code. Without the support of the controls team (our main client) and the flighttest team, for example, we would not have been able to dedicate the time to make this happen.
+:END:
+
 ** The Project
+
+https://github.com/con-kitty/categorifier
 
 - OSS just about a month ago
 - from the good graces of [[https://kittyhawk.aero][Kittyhawk]]
 
+:notes:
+Just about a month ago, we managed to get this Open Sourced. Kittyhawk had thankfully been on board with that plan all along, but it took a while to extricate it from our internal code base and cross all the legal Ts involved.
+:END:
+
 ** What did we add?
 
 Support for
+- sum types
 - recursion
 - multiple modules (and third-party dependencies)
 - various type class hierarchies
@@ -105,12 +163,155 @@ Rich Error reporting, with suggestions
 
 Separate categorification (translate common functions once, rather than every time they're called)
 
+** How to use it
+
+#+begin_src haskell :tangle NegateExpression.hs
+import qualified Categorifier.Categorify as Categorify
+import Control.Category (Category (..))
+import Control.Arrow (Arrow (..))
+import Prelude hiding ((.), id)
+
+newtype Hask a b = Hask {runHask :: a -> b}
+
+instance Category Hask where
+  id = Hask id
+  Hask g . Hask f = Hask $ g . f
+
+instance Arrow Hask where
+  arr = Hask
+  Hask f *** Hask g = Hask $ f *** g
+
+wrap_negate :: Num a => a `Hask` a
+wrap_negate = Categorify.expression negate
+
+main :: IO ()
+main = print $ runHask wrap_negate (5 :: Int)
+#+end_src
+
+:notes:
+-- | The simplest example using the "Categorifier" plugin.
+-- | This is our category. It simply wraps @->@ in a @newtype@, so the semantics
+--   are obvious.
+-- | These instances tell us what the categorical (or Haskell) operations mean
+--   in the target category. Again, in this case they're all trivial.
+-- | `Arrow` is a pretty intense class. Most of the time you won't be able to
+--   get away with just defining this and letting everything work. There are
+--   other type class hierarchies that you can use instead of base that give
+--   more fine-grained definitions. That is usually what you'll want.
+-- | This then tells us to convert the function
+-- > negate :: `Num` a => a -> a
+--   to
+-- > wrap_negate :: `Num` a => `Hask` a a
+-- | Finally, we use `wrap_negate`. Which, in this trivial case, just means
+--   unwrapping it and applying the underlying function.
+
+At Kittyhawk, the team (us) working on this codegen system and the team writing the flight controller are different. One thing we found is that as flight control code would change (say, adding a parameter), it would break our categorification, and it was annoying for them to have to update this code that felt like boilerplate somewehere outside of their responsibility and ken.
+:END:
+
+*** functions
+
+#+begin_src haskell :tangle NegateFunction.hs
+{-# LANGUAGE TemplateHaskell #-}
+
+import qualified Categorifier.Categorify as Categorify
+import Control.Category (Category (..))
+import Control.Arrow (Arrow (..))
+import Prelude hiding ((.), id)
+
+newtype Hask a b = Hask {runHask :: a -> b}
+
+instance Category Hask where
+  id = Hask id
+  Hask g . Hask f = Hask $ g . f
+
+instance Arrow Hask where
+  arr = Hask
+  Hask f *** Hask g = Hask $ f *** g
+
+Categorify.function 'negate [t|Hask|] []
+
+main :: IO ()
+main = print $ runHask wrap_negate (5 :: Int)
+#+end_src
+
+:notes:
+So we added some additional ways to categorify things. Here ~Categorify.function~ replaces ~Categorify.expression~. It no longer names the parameters and types involved. Flight control can now add parameters, change types, etc. without having to adjust this code. Since part of our goal here is to make it as easy as possible to write "normal" Haskell, we almost always use ~function~ instead of ~expression~. You just have to name the functions you want to categorify, and it'll track those functions in the code.
+:END:
+
+*** compiling
+
+#+begin_src haskell :tangle negate.cabal
+executable trivial-example
+  main-is: NegateFunction.hs
+  ghc-options:
+    -fplugin Categorifier
+  build-depends:
+    , base
+    , categorifier-plugin
+    -- needed for generated code
+    , categorifier-category
+    , categorifier-client
+    , ghc-prim
+#+end_src
+
+:notes:
+This is the cabal stanza needed to compile the last example. The most important line here is ~-fplugin Categorifier~, that is what tells GHC to use the plugin. We then also need the ~categorifier-plugin~ dependency, which provides the plugin. Finally, there are three extra dependencies that are needed by the code generated by the plugin. Other than that last bit of noise, it's not too complicated so far, I hope.
+:END:
+
+*** other categories
+
+#+begin_src haskell :tangle NegateSyntax.hs
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeApplications #-}
+
+import qualified Categorifier.Categorify as Categorify
+import qualified Categorifier.ConCat.Examples.Syntactic as Syntactic
+import qualified Control.Lens as Lens
+
+Categorify.function 'Lens.view [t|Syntactic.Syn|] []
+
+main :: IO ()
+main = putStrLn . ('\n' :) . Syntactic.render $ wrap_view @Int @((->) Int)
+#+end_src
+
+:notes:
+Conal has helpfully provided a collection of very useful categories in his ~concat-examples~ library. Like I mentioned before, you usually can't get away with implementing ~Arrow~, so Conal also has a library of type classes for more fine-grained definitions of categories, ~concat-classes~.
+
+:END:
+
+#+begin_src haskell :tangle negate.cabal
+executable syntax-example
+  main-is: Syntax.hs
+  ghc-options:
+    -fplugin Categorifier
+    -fplugin-opt Categorifier:hierarchy:Categorifier.Hierarchy.ConCat.classHierarchy
+  build-depends:
+    , base
+    , categorifier-concat-examples
+    , categorifier-concat-integration
+    , categorifier-plugin
+    , lens
+    -- needed for generated code
+    , categorifier-category
+    , categorifier-client
+    , concat-classes
+    , ghc-prim
+#+end_src
+
+:notes:
+This isn't too different from the last cabal stanza. The main difference here is the ~-fplugin-opt~ line. The first part of this is standard -- it's the name of the plugin to provide the option to, followed by a colon, then the rest is the text sent to the plugin to be processed. So, ~hierarchy~ is the option sent to our plugin, followed by the same colon for consistency. And the value for the ~hierarchy~ option is a fully-qualified Haskell identifier. In this case, we're telling it we want to use the one that connects Conal's ~concat-classes~ to our plugin (the default ~hierarchy~ setting uses only ~base~). The hierarchy we want is defined in ~categorifier-concat-integration~.
+
+Kittyhawk, while having replaced the plugin, /does/ use (an extended version of) Conal's type class hierarchy. It's certainly what we'd recommend as you get started.
+:END:
+
 * Compiling Anything to Categories
 * Compiling (Almost) Anything to Categories
 
+:notes:
 But, we didn't get /everything/ to work, and yet we needed everything to work ... can't get an "oops!".
 
 So we added two "loopholes" to the plugin. Ways to get things through when the plugin would otherwise give up
+:END:
 
 ** NativeCat
 
@@ -119,13 +320,13 @@ This class gives us a way to insert a particular mapping for a Haskell function 
 :END:
 
 #+begin_src haskell
-  Categorify.separately 'someFunctionCalledALot ''MyCategory []
-  -- > Categorify.function 'someFunctionCalledALot
-  -- > instance NativeCat MyCategory "someFunctionCalledALot" In Out where
-  -- >   nativeK = wrap_someFunctionCalledALot
+Categorify.separately 'someFunctionCalledALot ''MyCategory []
+-- > Categorify.function 'someFunctionCalledALot
+-- > instance NativeCat MyCategory "someFunctionCalledALot" In Out where
+-- >   nativeK = wrap_someFunctionCalledALot
 
-  -- This is faster because of that
-  Categorify.function 'functionThatCallsThatOneALot
+-- This is faster because of that
+Categorify.function 'functionThatCallsThatOneALot
 #+end_src
 
 ** automatic interpretation
@@ -136,7 +337,9 @@ This is a way to bypass the plugin, for many functions in one fell swoop. "Autom
 
 ** improving the plugin
 
+:notes:
 While we think these are good and useful, it would also be great if we could patch up the remaining missing pieces:
+:END:
 
 *** existential types
 
@@ -145,19 +348,41 @@ While we think these are good and useful, it would also be great if we could pat
 :END:
 
 #+begin_src haskell
-  -- won't work
-  type Rep (Meh b c) = (forall a. (a, b), c)
+-- won't work
+type Rep (Meh b c) = (forall a. (a, b), c)
 
-  -- might work
-  type Rep (Meh b c) = (Exists (Flip (,) b), c)
+-- might work
+type Rep (Meh b c) = (Exists (Flip (,) b), c)
 #+end_src
 
 *** mutual recursion
 
+#+begin_src haskell
+-- won't work
+let a = Foo {bar = b * c, baz = 3 + bar a}
+    
+-- works
+let bar' = b * c
+    a = Foo {bar = bar', baz = 3 + bar'}
+#+end_src
+    
+:notes:
 Simple recursion works fine, but mutual recursion fails ... and in some cases it fails via nontermination. When we can, we at least identify mutual recursion and complain at compile time, but we can't always.
+:END:
 
 *** eliminate ~HasRep~
 
 :notes:
 We currently need to define a ~HasRep~ instance for any compound types. It's usually trivially done with a call to ~deriveHasRep~, but it seems like we could piggyback off ~Generic~ with a bit of work. This would be especially helpful, because 3rd-party libraries are much more likely to provide ~Generic~ instances for their types than ~HasRep~ ones. This can be particularly painful when upstream types are private, and so we can't easily define ~HasRep~ without patching those libraries.
 :END:
+
+* Questions?
+
+- https://github.com/sellout/compiling-anything-to-categories
+- greg@technomadic.org
+- @sellout (Twitter)
+
+- http://conal.net/papers/compiling-to-categories
+- https://github.com/con-kitty/categorifier
+
+[[./resources/whale.mov]]

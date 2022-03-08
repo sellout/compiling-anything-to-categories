@@ -12,27 +12,43 @@ source-repository head
   type: git
   location: https://github.com/sellout/compiling-anything-to-categories
 
-library
-  exposed-modules:
-  ghc-options:
-    -O2
-    -Wall
-  build-depends:
-    lens
-
-executable example
+executable trivial-example
   main-is: Example.hs
   ghc-options:
-    -O2
     -fplugin Categorifier
-    -fplugin-opt Categorifier:hierarchy:Categorifier.Hierarchy.baseHierarchy
-    -Wall
   build-depends:
     , base
-    , categorifier-category
-    -- shouldn't need this
-    , categorifier-client
     , categorifier-plugin
-    , compiling-anything-to-categories
-    -- shouldn't need this
+    -- needed for generated code
+    , categorifier-category
+    , categorifier-client
+    , ghc-prim
+
+executable example2
+  main-is: Example2.hs
+  ghc-options:
+    -fplugin Categorifier
+  build-depends:
+    , base
+    , categorifier-plugin
+    -- needed for generated code
+    , categorifier-category
+    , categorifier-client
+    , ghc-prim
+
+executable syntax-example
+  main-is: Syntax.hs
+  ghc-options:
+    -fplugin Categorifier
+    -fplugin-opt Categorifier:hierarchy:Categorifier.Hierarchy.ConCat.classHierarchy
+  build-depends:
+    , base
+    , categorifier-concat-examples
+    , categorifier-concat-integration
+    , categorifier-plugin
+    , lens
+    -- needed for generated code
+    , categorifier-category
+    , categorifier-client
+    , concat-classes
     , ghc-prim
