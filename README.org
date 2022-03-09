@@ -312,106 +312,36 @@ Kittyhawk, while having replaced the plugin, /does/ use (an extended version of)
 *** instances
 
 #+begin_src haskell
-class Category k where
-  type Ok k :: Type -> Constraint
-  type Ok k = Yes1
-  id  :: Ok k a => a `k` a
-  infixr 9 .
-  (.) :: forall b c a. Ok3 k a b c => (b `k` c) -> (a `k` b) -> (a `k` c)
+instance Category Syn where
+  id  = app0 "id"
+  (.) = app2 "."
 
-class (Category k, OkProd k) => AssociativePCat k where
-  lassocP :: forall a b c. Ok3 k a b c
-          => Prod k a (Prod k b c) `k` Prod k (Prod k a b) c
-  default lassocP :: forall a b c. (MProductCat k, Ok3 k a b c)
-                  => Prod k a (Prod k b c) `k` Prod k (Prod k a b) c
-  lassocP = second exl &&& (exr . exr)
-            <+ okProd @k @a @b
-            <+ inOpR' @(Prod k) @(Ok' k) @a @b @c
-  {-# INLINE lassocP #-}
-  rassocP :: forall a b c. Ok3 k a b c
-          => Prod k (Prod k a b) c `k` Prod k a (Prod k b c)
-  default rassocP :: forall a b c. (MProductCat k, Ok3 k a b c)
-                  => Prod k (Prod k a b) c `k` Prod k a (Prod k b c)
-  rassocP = (exl . exl) &&& first  exr
-            <+ okProd @k    @b @c
-            <+ inOpL' @(Prod k) @(Ok' k) @a @b @c
-  {-# INLINE rassocP #-}
+instance AssociativePCat Syn where
+  lassocP = app0 "lassocP"
+  rassocP = app0 "rassocP"
 
--- | Category with monoidal product.
-class (Category k, OkProd k) => MonoidalPCat k where
-  (***) :: forall a b c d. Ok4 k a b c d
-        => (a `k` c) -> (b `k` d) -> (Prod k a b `k` Prod k c d)
-  first :: forall a a' b. Ok3 k a b a'
-        => (a `k` a') -> (Prod k a b `k` Prod k a' b)
-  first = (*** id)
-  {-# INLINE first #-}
-  second :: forall a b b'. Ok3 k a b b'
-         => (b `k` b') -> (Prod k a b `k` Prod k a b')
-  second = (id ***)
-  {-# INLINE second #-}
+instance MonoidalPCat Syn where
+  (***)  = app2 "***"
+  first  = app1 "first"
+  second = app1 "second"
 
--- | Braided monoidal category
-class (Category k, OkProd k {- , MonoidalPCat k -}) => BraidedPCat k where
-  swapP :: forall a b. Ok2 k a b => Prod k a b `k` Prod k b a
-  default swapP :: forall a b. (ProductCat k, MonoidalPCat k, Ok2 k a b)
-                => Prod k a b `k` Prod k b a
-  swapP = exr &&& exl <+ okProd @k @a @b
-  {-# INLINE swapP #-}
+instance BraidedPCat Syn where
+  swapP = app0 "swapP"
 
-type MBraidedPCat k = (BraidedPCat k, MonoidalPCat k)
+instance ProductCat Syn where
+  exl = app0 "exl"
+  exr = app0 "exr"
+  dup = app0 "dup"
 
--- | Category with product.
-class (Category k, OkProd k) => ProductCat k where
-  exl :: Ok2 k a b => Prod k a b `k` a
-  exr :: Ok2 k a b => Prod k a b `k` b
-  dup :: Ok  k a => a `k` Prod k a a
-
-(&&&) :: forall k a c d. (MProductCat k, Ok3 k a c d)
-      => (a `k` c) -> (a `k` d) -> (a `k` Prod k c d)
-f &&& g = (f *** g) . dup <+ okProd @k @a @a <+ okProd @k @c @d
-{-# INLINE (&&&) #-}
-
-type MProductCat k = (ProductCat k, MonoidalPCat k)
-#+end_src
-
-#+begin_src haskell
-linearD :: (a -> b) -> (a `k` b) -> GD k a b
-linearD f f' = D (\ a -> (f a, f'))
-
-#define Linear(nm) nm = linearD nm nm ; {-# INLINE nm #-}
-
-instance Category k => Category (GD k) where
-  type Ok (GD k) = Ok k
-  Linear(id)
-  D g . D f = D (\ a -> let { (b,f') = f a ; (c,g') = g b } in (c, g' . f'))
-  {-# INLINE (.) #-}
-
-instance AssociativePCat k => AssociativePCat (GD k) where
-  Linear(lassocP)
-  Linear(rassocP)
-
-instance BraidedPCat k => BraidedPCat (GD k) where
-  Linear(swapP)
-
-instance MonoidalPCat k => MonoidalPCat (GD k) where
-  D f *** D g =
-    D (\ (a,b) -> let { (c,f') = f a ; (d,g') = g b } in ((c,d), f' *** g'))
-  {-# INLINE (***) #-}
-
-instance ProductCat k => ProductCat (GD k) where
-  Linear(exl)
-  Linear(exr)
-  Linear(dup)
-
-instance UnitCat k => UnitCat (GD k) where
-  Linear(lunit)
-  Linear(runit)
-  Linear(lcounit)
-  Linear(rcounit)
+instance AssociativeSCat Syn where
+  lassocS = app0 "lassocS"
+  rassocS = app0 "rassocS"
 #+end_src
     
 :notes:
-We've been piggybacking off concat-examples, since there are already some great examples there. But here are some of the instances underlying those examples, to give a flavor of what needs to be defined for a category. However, as we've seen, Categorifier works with a variety of type class hierarchies, so if you use something other than concat-classes, your instances will be for different classes. This is from the category for automatic differentiation.
+We've been piggybacking off concat-examples, since there are already some great examples there. But here are some of the instances underlying those examples, to give a flavor of what needs to be defined for a category. There are more classes than this, it's just a taste. However, as we've seen, Categorifier works with a variety of type class hierarchies, so if you use something other than concat-classes, your instances will be for different classes.
+
+But once such a category has been defined, it can be easily reused, as in the example above.
 :END:
 
 *** dealing with types
