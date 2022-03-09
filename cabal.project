@@ -1,43 +1,49 @@
 source-repository-package
   type: git
   location: https://github.com/con-kitty/categorifier.git
-  tag: d72020b7f2c4534f94d7694b477e0dc8a3cb1f77
+  tag: 526f2d9af66665d10d36393ad0c94fd1a6270457
   subdir: category
 
 source-repository-package
   type: git
   location: https://github.com/con-kitty/categorifier.git
-  tag: d72020b7f2c4534f94d7694b477e0dc8a3cb1f77
+  tag: 526f2d9af66665d10d36393ad0c94fd1a6270457
   subdir: client
 
 source-repository-package
   type: git
   location: https://github.com/con-kitty/categorifier.git
-  tag: d72020b7f2c4534f94d7694b477e0dc8a3cb1f77
+  tag: 526f2d9af66665d10d36393ad0c94fd1a6270457
   subdir: common
 
 source-repository-package
   type: git
   location: https://github.com/con-kitty/categorifier.git
-  tag: d72020b7f2c4534f94d7694b477e0dc8a3cb1f77
+  tag: 526f2d9af66665d10d36393ad0c94fd1a6270457
+  subdir: integrations/concat/examples
+
+source-repository-package
+  type: git
+  location: https://github.com/con-kitty/categorifier.git
+  tag: 526f2d9af66665d10d36393ad0c94fd1a6270457
   subdir: integrations/concat/integration
 
 source-repository-package
   type: git
   location: https://github.com/con-kitty/categorifier.git
-  tag: d72020b7f2c4534f94d7694b477e0dc8a3cb1f77
+  tag: 526f2d9af66665d10d36393ad0c94fd1a6270457
   subdir: duoids
 
 source-repository-package
   type: git
   location: https://github.com/con-kitty/categorifier.git
-  tag: d72020b7f2c4534f94d7694b477e0dc8a3cb1f77
+  tag: 526f2d9af66665d10d36393ad0c94fd1a6270457
   subdir: integrations/concat-extensions/category
 
 source-repository-package
   type: git
   location: https://github.com/con-kitty/categorifier.git
-  tag: d72020b7f2c4534f94d7694b477e0dc8a3cb1f77
+  tag: 526f2d9af66665d10d36393ad0c94fd1a6270457
   subdir: plugin
 
 source-repository-package
